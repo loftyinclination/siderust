@@ -549,6 +549,68 @@ pub fn moon_phase_topocentric<E: Ephemeris>(
     }
 }
 
+/// Compute the Moon phase geometry for a given coordinate.
+///
+/// # Returns
+///
+/// A [`MoonPhaseGeometry`] with phase angle, illuminated fraction,
+/// elongation, and waxing flag, all computed in the geocentric frame.
+///
+/// # Example
+///
+/// ```rust
+/// use siderust::bodies::solar_system::*;
+/// use siderust::event::lunar::phase::{moon_phase_geocentric, MoonPhaseGeometry};
+/// use siderust::ephemeris::Vsop87Ephemeris;
+/// use siderust::time::JulianDate;
+///
+/// let site = Geodetic::<ECEF>::new(0.0 * DEG, 51.48 * DEG, 0.0 * M);
+/// let moon_topo = Moon::get_apparent_topocentric_equ::<Kilometer>(siderust::J2000);
+/// let sun_topo = Sun::get_apparent_topocentric_equ::<Kilometer>(siderust::J2000);
+/// let geom = moon_phase(moon_topo, sun_topo);
+/// assert!(geom.illuminated_fraction.value() >= 0.0);
+/// assert!(geom.illuminated_fraction.value() <= 1.0);
+/// ```
+pub fn moon_phase<C, F, UM, US>(
+    moon_location: affn::spherical::Position<C, F, UM>,
+    sun_location: affn::spherical::Position<C, F, US>,
+) -> MoonPhaseGeometry
+where
+    C: affn::centers::ReferenceCenter,
+    F: frames::ReferenceFrame,
+    UM: LengthUnit,
+    US: LengthUnit,
+{
+    // Elongation: angular separation measured eastward from the Sun.
+    // For the proper great-circle elongation including latitude:
+    let psi = great_circle_elongation(
+        moon_location.azimuth.to_const(),
+        moon_location.polar.to_const(),
+        sun_location.azimuth.to_const(),
+        sun_location.polar.to_const(),
+    );
+
+    // Signed elongation for waxing/waning (eastward = positive)
+    let signed_elong = elongation_from_longitudes(moon_location.azimuth.to_const(), sun_location.azimuth.to_const());
+
+    // Phase angle from the three-body triangle
+    let i = phase_angle_from_triangle(
+        moon_location.distance.to_const::<Kilometer>().value(),
+        sun_location.distance.to_const::<AstronomicalUnit>().value(),
+        psi,
+    );
+
+    // Illuminated fraction
+    let k = (1.0 + i.cos()) / 2.0;
+
+    MoonPhaseGeometry {
+        phase_angle: Radians::new(i),
+        illuminated_fraction: IlluminationFractions::new(k),
+        elongation: Radians::new(signed_elong),
+        waxing: signed_elong > 0.0 && signed_elong < PI,
+    }
+}
+
 // ===========================================================================
 // Elongation as a scalar function of MJD (for root-finding)
 // ===========================================================================
