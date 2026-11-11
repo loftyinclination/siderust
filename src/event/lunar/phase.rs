@@ -537,11 +537,7 @@ pub fn moon_phase_topocentric<E: Ephemeris>(
     let dra = (moon_ra - sun_ra).value().rem_euclid(TWO_PI);
     let signed_elong = if dra < PI { psi } else { TWO_PI - psi };
 
-    // Phase angle from geocentric distance triangle
-    // (topocentric parallax is < 1° → distance ratios essentially unchanged)
-    let (_, _, moon_dist_km) = moon_ecliptic_geocentric::<E>(jd);
-    let (_, sun_dist_au) = sun_ecliptic_geocentric::<E>(jd);
-    let i = phase_angle_from_triangle(moon_dist_km, sun_dist_au, psi);
+    let i = phase_angle_from_triangle(moon_topo.distance.value(), sun_topo.distance.value(), psi);
 
     let k = (1.0 + i.cos()) / 2.0;
 
