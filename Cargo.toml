@@ -65,7 +65,7 @@ path = "tests/spice_context.rs"
 required-features = ["spice"]
 
 [features]
-default = ["std", "serde"]
+default = ["std", "serde", "elp-simd", "vsop-simd"]
 ## Enable the Rust standard library (filesystem, OS I/O, `Utc::now`, etc.).
 ## Without `std`, the crate builds as `no_std` + `alloc`.
 std = [
@@ -104,6 +104,9 @@ photometry = ["qtty/photometry"]
 spice = ["std"]
 atmosphere = []
 doris = []
+## Use SIMD algorithms
+elp-simd = []
+vsop-simd = []
 ## Precise Orbit Determination (POD) toolkit. Folded from the former `siderust-pod` crate.
 ## Requires `std` (faer linalg, filesystem product writers).
 pod = ["std", "serde", "dep:faer", "dep:hex", "dep:sha2"]

@@ -73,7 +73,7 @@ fn sin_cos_x4(args: f64x4) -> (f64x4, f64x4) {
 
 /// Compute position value only (no derivative).
 /// Uses SIMD batching for cos operations.
-#[inline(always)]
+#[cfg_attr(feature = "vsop-simd", inline(always))]
 fn coord_value(series_by_power: &[&[Vsop87]], t: f64) -> f64 {
     let mut t_pow = 1.0_f64;
     let mut value = 0.0_f64;
@@ -83,9 +83,17 @@ fn coord_value(series_by_power: &[&[Vsop87]], t: f64) -> f64 {
         let len = terms.len();
 
         // Process 4 terms at a time with SIMD
+        #[cfg(feature = "elp-simd")]
         let chunks = len / 4;
-        let remainder = len % 4;
+        #[cfg(not(feature = "elp-simd"))]
+        let chunks = 0;
 
+        #[cfg(feature = "elp-simd")]
+        let remainder = len % 4;
+        #[cfg(not(feature = "elp-simd"))]
+        let remainder = len;
+
+        #[cfg(feature = "vsop-simd")]
         for i in 0..chunks {
             let base = i * 4;
             let t0 = &terms[base];

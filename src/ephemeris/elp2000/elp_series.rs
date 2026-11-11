@@ -139,10 +139,13 @@ impl ElpPrecomputed {
 
 /// Sum main problem series with SIMD batching.
 /// No per-term angle normalization needed since sin() is 2π-periodic.
-#[inline(always)]
+#[cfg_attr(feature = "elp-simd", inline(always))]
 fn sum_main_problem_series(series: &[MainProblem], pc: &ElpPrecomputed, y_offset: f64) -> f64 {
     // Precompute combined coefficient
-    let delta_aux = DELNP.value() - AM * DELNU.value();
+    const DELTA_AUX: f64 = DELNP.value() - AM * DELNU.value();
+    const DELG_VALUE: f64 = DELG.value();
+    const DELE_VALUE: f64 = DELE.value();
+    const DELEP_VALUE: f64 = DELEP.value();
 
     let d = pc.del_full[0];
     let m = pc.del_full[1];
@@ -151,9 +154,17 @@ fn sum_main_problem_series(series: &[MainProblem], pc: &ElpPrecomputed, y_offset
 
     let mut sum = 0.0_f64;
     let len = series.len();
+    #[cfg(feature = "elp-simd")]
     let chunks = len / 4;
-    let remainder = len % 4;
+    #[cfg(not(feature = "elp-simd"))]
+    let chunks = 0;
 
+    #[cfg(feature = "elp-simd")]
+    let remainder = len % 4;
+    #[cfg(not(feature = "elp-simd"))]
+    let remainder = len;
+
+    #[cfg(feature = "elp-simd")]
     // SIMD: process 4 terms at a time
     for i in 0..chunks {
         let base = i * 4;
@@ -169,25 +180,25 @@ fn sum_main_problem_series(series: &[MainProblem], pc: &ElpPrecomputed, y_offset
         let tgv3 = e3.b[0] + DTASM * e3.b[4];
 
         let c0 = e0.a
-            + tgv0 * delta_aux
-            + e0.b[1] * DELG.value()
-            + e0.b[2] * DELE.value()
-            + e0.b[3] * DELEP.value();
+            + tgv0 * DELTA_AUX
+            + e0.b[1] * DELG_VALUE
+            + e0.b[2] * DELE_VALUE
+            + e0.b[3] * DELEP_VALUE;
         let c1 = e1.a
-            + tgv1 * delta_aux
-            + e1.b[1] * DELG.value()
-            + e1.b[2] * DELE.value()
-            + e1.b[3] * DELEP.value();
+            + tgv1 * DELTA_AUX
+            + e1.b[1] * DELG_VALUE
+            + e1.b[2] * DELE_VALUE
+            + e1.b[3] * DELEP_VALUE;
         let c2 = e2.a
-            + tgv2 * delta_aux
-            + e2.b[1] * DELG.value()
-            + e2.b[2] * DELE.value()
-            + e2.b[3] * DELEP.value();
+            + tgv2 * DELTA_AUX
+            + e2.b[1] * DELG_VALUE
+            + e2.b[2] * DELE_VALUE
+            + e2.b[3] * DELEP_VALUE;
         let c3 = e3.a
-            + tgv3 * delta_aux
-            + e3.b[1] * DELG.value()
-            + e3.b[2] * DELE.value()
-            + e3.b[3] * DELEP.value();
+            + tgv3 * DELTA_AUX
+            + e3.b[1] * DELG_VALUE
+            + e3.b[2] * DELE_VALUE
+            + e3.b[3] * DELEP_VALUE;
 
         // Compute arguments
         let y0 = y_offset
@@ -221,10 +232,10 @@ fn sum_main_problem_series(series: &[MainProblem], pc: &ElpPrecomputed, y_offset
     for entry in &series[chunks * 4..chunks * 4 + remainder] {
         let tgv = entry.b[0] + DTASM * entry.b[4];
         let coeff = entry.a
-            + tgv * delta_aux
-            + entry.b[1] * DELG.value()
-            + entry.b[2] * DELE.value()
-            + entry.b[3] * DELEP.value();
+            + tgv * DELTA_AUX
+            + entry.b[1] * DELG_VALUE
+            + entry.b[2] * DELE_VALUE
+            + entry.b[3] * DELEP_VALUE;
 
         let y = y_offset
             + d * (entry.ilu[0] as f64)
@@ -258,7 +269,7 @@ define_main_series!(sum_series_elp3_ctx, ELP3, FRAC_PI_2);
 /// Sum Earth perturbation series with SIMD batching.
 /// `scale_idx` multiplies amplitude by t[i] if Some(i).
 /// No per-term angle normalization needed since sin() is 2π-periodic.
-#[inline(always)]
+#[cfg_attr(feature = "elp-simd", inline(always))]
 fn sum_earth_pert_series(
     series: &[EarthPert],
     pc: &ElpPrecomputed,
@@ -271,9 +282,17 @@ fn sum_earth_pert_series(
 
     let mut sum = 0.0_f64;
     let len = series.len();
+    #[cfg(feature = "elp-simd")]
     let chunks = len / 4;
-    let remainder = len % 4;
+    #[cfg(not(feature = "elp-simd"))]
+    let chunks = 0;
 
+    #[cfg(feature = "elp-simd")]
+    let remainder = len % 4;
+    #[cfg(not(feature = "elp-simd"))]
+    let remainder = len;
+
+    #[cfg(feature = "elp-simd")]
     // SIMD: process 4 terms at a time
     for i in 0..chunks {
         let base = i * 4;
@@ -421,7 +440,7 @@ fn compute_planet_arg(entry: &PlanetPert, pc: &ElpPrecomputed, use_alt_del: bool
 /// Sum planetary perturbation series with SIMD batching.
 /// `scale_o` multiplies `o` by t[1], `use_alt_del` switches argument terms.
 /// No per-term angle normalization needed since sin() is 2π-periodic.
-#[inline(always)]
+#[cfg_attr(feature = "elp-simd", inline(always))]
 fn sum_planet_pert_series(
     series: &[PlanetPert],
     pc: &ElpPrecomputed,
@@ -430,9 +449,17 @@ fn sum_planet_pert_series(
 ) -> f64 {
     let mut sum = 0.0_f64;
     let len = series.len();
+    #[cfg(feature = "elp-simd")]
     let chunks = len / 4;
-    let remainder = len % 4;
+    #[cfg(not(feature = "elp-simd"))]
+    let chunks = 0;
 
+    #[cfg(feature = "elp-simd")]
+    let remainder = len % 4;
+    #[cfg(not(feature = "elp-simd"))]
+    let remainder = len;
+
+    #[cfg(feature = "elp-simd")]
     // SIMD: process 4 terms at a time
     for i in 0..chunks {
         let base = i * 4;
